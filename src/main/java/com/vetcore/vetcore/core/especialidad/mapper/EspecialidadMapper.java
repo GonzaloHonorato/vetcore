@@ -8,10 +8,16 @@ import org.springframework.stereotype.Component;
 public class EspecialidadMapper {
 
     public EspecialidadDto toDto(Especialidad entity) {
+        if (entity == null) {
+            return null;
+        }
         return new EspecialidadDto(entity.getId(), entity.getNombre());
     }
 
     public Especialidad toEntity(EspecialidadDto dto) {
+        if (dto == null) {
+            return null;
+        }
         Especialidad entity = new Especialidad();
         entity.setId(dto.getId());
         entity.setNombre(dto.getNombre());
