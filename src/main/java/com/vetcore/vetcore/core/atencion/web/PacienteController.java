@@ -1,7 +1,11 @@
 package com.vetcore.vetcore.core.atencion.web;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
+import org.springframework.hateoas.CollectionModel;
+import org.springframework.hateoas.EntityModel;
+import org.springframework.hateoas.IanaLinkRelations;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -19,6 +23,18 @@ import com.vetcore.vetcore.core.atencion.service.PacienteService;
 
 import lombok.RequiredArgsConstructor;
 
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.*;
+
+/**
+ * Controlador REST para gestión de pacientes con documentación HATEOAS
+ * 
+ * Proporciona endpoints para CRUD de pacientes, búsquedas por RUT,
+ * y gestión de información médica veterinaria.
+ * 
+ * Implementa hipermedia usando Spring HATEOAS para facilitar
+ * la navegación de la API.
+ */
+
 @RestController
 @RequestMapping("/api/pacientes")
 @RequiredArgsConstructor
@@ -26,15 +42,39 @@ public class PacienteController {
 
     private final PacienteService service;
 
+    /**
+     * Lista todos los pacientes con enlaces HATEOAS
+     * 
+     * @return CollectionModel con todos los pacientes y enlaces de navegación
+     */
     @GetMapping
-    public ResponseEntity<List<PacienteDto>> getAllPacientes() {
-        return ResponseEntity.ok(service.findAll());
+    public ResponseEntity<CollectionModel<EntityModel<PacienteDto>>> getAllPacientes() {
+        List<PacienteDto> pacientes = service.findAll();
+        
+        List<EntityModel<PacienteDto>> pacientesModel = pacientes.stream()
+            .map(this::agregarEnlaces)
+            .collect(Collectors.toList());
+        
+        CollectionModel<EntityModel<PacienteDto>> collectionModel = CollectionModel.of(pacientesModel);
+        
+        // Agregar enlaces de navegación
+        collectionModel.add(linkTo(methodOn(PacienteController.class).getAllPacientes()).withSelfRel());
+        collectionModel.add(linkTo(methodOn(PacienteController.class).createPaciente(null)).withRel("crear"));
+        
+        return ResponseEntity.ok(collectionModel);
     }
 
+    /**
+     * Busca un paciente por ID con enlaces HATEOAS
+     * 
+     * @param id ID del paciente a buscar
+     * @return EntityModel con el paciente y enlaces relacionados
+     */
     @GetMapping("/{id}")
-    public ResponseEntity<PacienteDto> getPacienteById(@PathVariable Integer id) {
+    public ResponseEntity<EntityModel<PacienteDto>> getPacienteById(@PathVariable Integer id) {
         try {
-            return ResponseEntity.ok(service.findById(id));
+            PacienteDto paciente = service.findById(id);
+            return ResponseEntity.ok(agregarEnlaces(paciente));
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
         }
@@ -49,14 +89,49 @@ public class PacienteController {
         }
     }
 
+    /**
+     * Crea un nuevo paciente con enlaces HATEOAS
+     * 
+     * @param pacienteDto datos del paciente a crear
+     * @return EntityModel con el paciente creado y enlaces relacionados
+     */
     @PostMapping
-    public ResponseEntity<PacienteDto> createPaciente(@RequestBody PacienteDto pacienteDto) {
+    public ResponseEntity<EntityModel<PacienteDto>> createPaciente(@RequestBody PacienteDto pacienteDto) {
         try {
             PacienteDto created = service.create(pacienteDto);
-            return ResponseEntity.status(HttpStatus.CREATED).body(created);
+            EntityModel<PacienteDto> pacienteModel = agregarEnlaces(created);
+            
+            return ResponseEntity.status(HttpStatus.CREATED).body(pacienteModel);
         } catch (Exception e) {
             return ResponseEntity.badRequest().build();
         }
+    }
+    
+    /**
+     * Agrega enlaces HATEOAS a un PacienteDto
+     * 
+     * @param paciente el paciente al que agregar enlaces
+     * @return EntityModel con enlaces HATEOAS
+     */
+    private EntityModel<PacienteDto> agregarEnlaces(PacienteDto paciente) {
+        EntityModel<PacienteDto> pacienteModel = EntityModel.of(paciente);
+        
+        // Enlace self
+        pacienteModel.add(linkTo(methodOn(PacienteController.class).getPacienteById(paciente.getId())).withSelfRel());
+        
+        // Enlace para actualizar
+        pacienteModel.add(linkTo(methodOn(PacienteController.class).updatePaciente(paciente.getId(), null)).withRel("actualizar"));
+        
+        // Enlace para eliminar
+        pacienteModel.add(linkTo(methodOn(PacienteController.class).deletePaciente(paciente.getId())).withRel("eliminar"));
+        
+        // Enlace para volver a la lista
+        pacienteModel.add(linkTo(methodOn(PacienteController.class).getAllPacientes()).withRel(IanaLinkRelations.COLLECTION));
+        
+        // Enlace para ver consultas del paciente
+        pacienteModel.add(linkTo(methodOn(ConsultaController.class).getConsultasByPacienteId(paciente.getId())).withRel("consultas"));
+        
+        return pacienteModel;
     }
 
     @PutMapping("/{id}")
