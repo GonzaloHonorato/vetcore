@@ -1,5 +1,5 @@
 # Dockerfile
-FROM openjdk:21-ea-24-oracle
+FROM eclipse-temurin:21-jdk-alpine
 
 WORKDIR /app
 
